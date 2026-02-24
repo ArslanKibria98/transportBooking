@@ -1,6 +1,7 @@
 "use client";
-import React from 'react';
+import React, { useState } from 'react';
 import styles from './Fleet.module.css';
+import Reservation from './Reservation';
 
 const vehicles = [
     {
@@ -48,6 +49,14 @@ const vehicles = [
 ];
 
 export default function Fleet() {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedVehicle, setSelectedVehicle] = useState('');
+
+    const handleBookNow = (vehicleName: string) => {
+        setSelectedVehicle(vehicleName);
+        setIsModalOpen(true);
+    };
+
     return (
         <section id="fleet" className={styles.fleet}>
             <div className="container">
@@ -74,11 +83,25 @@ export default function Fleet() {
                                     </div>
                                 </div>
                                 <p className={styles.description}>{vehicle.description}</p>
+                                <button
+                                    className={`btn-primary ${styles.bookBtn}`}
+                                    onClick={() => handleBookNow(vehicle.name)}
+                                >
+                                    Book Now
+                                </button>
                             </div>
                         </div>
                     ))}
                 </div>
             </div>
+
+            {isModalOpen && (
+                <Reservation
+                    isModal={true}
+                    selectedVehicle={selectedVehicle}
+                    onClose={() => setIsModalOpen(false)}
+                />
+            )}
         </section>
     );
 }
