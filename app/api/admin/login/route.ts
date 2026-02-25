@@ -38,10 +38,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find admin by username
-    let admin = null;
-    try {
-      admin = await Admin.findOne({ username: username.trim() }).lean();
+        // Find admin by username
+        let admin = null;
+        try {
+          admin = await Admin.findOne({ username: username.trim() } as any).lean();
       console.log("[Login] Admin lookup:", admin ? "Found" : "Not found", "for username:", username.trim());
     } catch (findError: any) {
       console.error("[Login] Admin find error:", findError?.message || findError);

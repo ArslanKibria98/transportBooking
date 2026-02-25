@@ -12,11 +12,11 @@ export async function POST(req: Request) {
   const parsed = createReservationSchema.safeParse(json);
   if (!parsed.success) {
     console.error("[Reservation] Validation error:", JSON.stringify(parsed.error.flatten(), null, 2));
-    return NextResponse.json(
+      return NextResponse.json(
       { 
         error: "Invalid payload", 
         issues: parsed.error.flatten(),
-        details: parsed.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        details: parsed.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
       },
       { status: 400 }
     );
@@ -28,8 +28,8 @@ export async function POST(req: Request) {
   await dbConnect();
 
   const [serviceType, vehiclePreference] = await Promise.all([
-    ServiceType.findById(payload.serviceTypeId, { name: 1 }).lean(),
-    VehiclePreference.findById(payload.vehiclePreferenceId, { name: 1 }).lean(),
+    ServiceType.findOne({ _id: payload.serviceTypeId } as any, { name: 1 } as any).lean(),
+    VehiclePreference.findOne({ _id: payload.vehiclePreferenceId } as any, { name: 1 } as any).lean(),
   ]);
 
   if (!serviceType || !vehiclePreference) {

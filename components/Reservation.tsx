@@ -173,7 +173,7 @@ export default function Reservation({
     const formContent = (
     <div className={`${styles.formWrapper} ${isModal ? styles.modalContent : ""}`} style={{ position: "relative" }}>
       {isModal && submitState !== "submitting" && (
-        <button className={styles.closeBtn} onClick={onClose} disabled={submitState === "submitting"}>
+        <button className={styles.closeBtn} onClick={onClose}>
           &times;
         </button>
       )}
@@ -237,10 +237,10 @@ export default function Reservation({
                   {s.name}
                 </option>
               ))}
-            </select>
-          </div>
-          <div className={styles.formGroup}>
-            <label>Vehicle Preference</label>
+                        </select>
+                    </div>
+                    <div className={styles.formGroup}>
+                        <label>Vehicle Preference</label>
             <select
               name="vehiclePreferenceId"
               onChange={handleChange}
@@ -252,10 +252,10 @@ export default function Reservation({
                   {v.name}
                 </option>
               ))}
-            </select>
-          </div>
-          <div className={styles.formGroup}>
-            <label>Passengers</label>
+                        </select>
+                    </div>
+                    <div className={styles.formGroup}>
+                        <label>Passengers</label>
             <select
               name="passengers"
               onChange={handleChange}
@@ -266,23 +266,23 @@ export default function Reservation({
                 <option key={n} value={n}>
                   {n} {n === 1 ? "Passenger" : "Passengers"}
                 </option>
-              ))}
-            </select>
-          </div>
-          <div className={styles.formGroup}>
-            <label>Luggage / Bags</label>
+                            ))}
+                        </select>
+                    </div>
+                    <div className={styles.formGroup}>
+                        <label>Luggage / Bags</label>
             <select name="bags" onChange={handleChange} value={formData.bags} disabled={isFormDisabled}>
               {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <option key={n} value={n}>
                   {n} {n === 1 ? "Bag" : "Bags"}
                 </option>
-              ))}
-            </select>
-          </div>
+                            ))}
+                        </select>
+                    </div>
 
-          {/* Schedule */}
-          <div className={styles.formGroup}>
-            <label>Pickup Date</label>
+                    {/* Schedule */}
+                    <div className={styles.formGroup}>
+                        <label>Pickup Date</label>
             <input
               type="date"
               name="pickupDate"
@@ -291,8 +291,8 @@ export default function Reservation({
               value={formData.pickupDate}
               disabled={isFormDisabled}
             />
-          </div>
-          <div className={styles.formGroup}>
+                    </div>
+                    <div className={styles.formGroup}>
             <label>Pickup Time (24-Hour Format)</label>
             <input
               type="time"
@@ -328,11 +328,11 @@ export default function Reservation({
               value={formData.pickupAddress}
               disabled={isFormDisabled}
             />
-          </div>
+                    </div>
 
-          {/* Airline / Flight info */}
-          <div className={styles.formGroup}>
-            <label>Airline (if airport)</label>
+                    {/* Airline / Flight info */}
+                    <div className={styles.formGroup}>
+                        <label>Airline (if airport)</label>
             <input
               type="text"
               name="airline"
@@ -341,9 +341,9 @@ export default function Reservation({
               value={formData.airline}
               disabled={isFormDisabled}
             />
-          </div>
-          <div className={styles.formGroup}>
-            <label>Flight Number</label>
+                    </div>
+                    <div className={styles.formGroup}>
+                        <label>Flight Number</label>
             <input
               type="text"
               name="flightNumber"
@@ -352,11 +352,11 @@ export default function Reservation({
               value={formData.flightNumber}
               disabled={isFormDisabled}
             />
-          </div>
+                    </div>
 
-          {/* Destination */}
-          <div className={`${styles.formGroup} ${styles.fullWidth}`}>
-            <label>Destination Address</label>
+                    {/* Destination */}
+                    <div className={`${styles.formGroup} ${styles.fullWidth}`}>
+                        <label>Destination Address</label>
             <input
               type="text"
               name="destinationAddress"
@@ -366,10 +366,10 @@ export default function Reservation({
               value={formData.destinationAddress}
               disabled={isFormDisabled}
             />
-          </div>
+                    </div>
 
-          <div className={`${styles.formGroup} ${styles.fullWidth}`}>
-            <label>Special Instructions / Notes</label>
+                    <div className={`${styles.formGroup} ${styles.fullWidth}`}>
+                        <label>Special Instructions / Notes</label>
             <textarea
               name="message"
               rows={3}

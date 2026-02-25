@@ -4,7 +4,7 @@ import { VehiclePreference } from "@/models/VehiclePreference";
 
 export async function GET() {
   await dbConnect();
-  const items = await VehiclePreference.find({})
+  const items = await VehiclePreference.find({} as any)
     .sort({ name: 1 })
     .lean();
   return NextResponse.json({

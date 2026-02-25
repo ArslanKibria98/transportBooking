@@ -12,10 +12,10 @@ export async function GET(req: NextRequest) {
   // }
   await dbConnect();
 
-  const reservations = await Reservation.find({})
-    .sort({ createdAt: -1 })
-    .limit(100)
-    .lean();
+      const reservations = await Reservation.find({} as any)
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .lean();
 
   const serviceIds = Array.from(
     new Set(reservations.map((r) => String(r.serviceTypeId)))
@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
   );
 
   const [services, vehicles] = await Promise.all([
-    ServiceType.find({ _id: { $in: serviceIds } }, { name: 1 }).lean(),
-    VehiclePreference.find({ _id: { $in: vehicleIds } }, { name: 1 }).lean(),
+    ServiceType.find({ _id: { $in: serviceIds } } as any, { name: 1 } as any).lean(),
+    VehiclePreference.find({ _id: { $in: vehicleIds } } as any, { name: 1 } as any).lean(),
   ]);
 
   const serviceMap = new Map(services.map((s) => [String(s._id), s.name]));

@@ -4,7 +4,7 @@ import { ServiceType } from "@/models/ServiceType";
 
 export async function GET() {
   await dbConnect();
-  const items = await ServiceType.find({}, { name: 1 })
+  const items = await ServiceType.find({} as any, { name: 1 } as any)
     .sort({ name: 1 })
     .lean();
   return NextResponse.json({

@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   // }
   await dbConnect();
-  const items = await VehiclePreference.find({})
+  const items = await VehiclePreference.find({} as any)
     .sort({ createdAt: -1 })
     .lean();
   return NextResponse.json(
