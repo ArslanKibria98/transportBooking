@@ -101,8 +101,11 @@ export async function POST(req: Request) {
     });
     console.log("[Reservation] ✅ Email notification sent successfully");
   } catch (err: any) {
-    console.error("[Reservation] ❌ Email error:", err?.message || err);
-    console.error("[Reservation] Email error stack:", err?.stack);
+    console.error("[Reservation] ❌ Email notification failed:", err?.message || err);
+    console.error("[Reservation] Email error code:", err?.code);
+    console.error("[Reservation] Email error syscall:", err?.syscall);
+    // Don't throw - reservation is still created, email is just a notification
+    // Log error but continue
   }
 
   return NextResponse.json({ ok: true, reservationId: String(created._id) });

@@ -39,6 +39,11 @@ export async function sendAdminNewReservationEmail(payload: {
       port,
       secure: port === 465,
       auth: { user, pass },
+      // Force IPv4 to avoid IPv6 connection issues
+      family: 4,
+      // Connection timeout
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
     });
 
     const subject = `New Reservation: ${payload.name} - ${payload.serviceType}`;
@@ -80,8 +85,13 @@ export async function sendAdminNewReservationEmail(payload: {
       text,
       html 
     });
-    console.log(`[Email] Notification sent to ${to}`);
+    console.log(`[Email] ✅ Notification sent to ${to}`);
+    return true; // Return success
   } catch (error: any) {
-    console.error("[Email] Failed to send notification:", error?.message || error);
+    console.error("[Email] ❌ Failed to send notification:", error?.message || error);
+    console.error("[Email] Error code:", error?.code);
+    console.error("[Email] Error syscall:", error?.syscall);
+    // Re-throw error so calling code knows it failed
+    throw error;
   }
 }
