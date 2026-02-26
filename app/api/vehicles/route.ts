@@ -16,6 +16,7 @@ export async function GET() {
       passengers: x.passengers || 0,
       luggage: x.luggage || 0,
       description: x.description || "",
+      rate: x.rate || 0,
     })),
   });
 }

@@ -11,6 +11,7 @@ interface Vehicle {
   passengers: number;
   luggage: number;
   description: string;
+  rate: number;
 }
 
 export default function Fleet() {
@@ -93,6 +94,14 @@ export default function Fleet() {
                       <span>🧳</span> {vehicle.luggage || 0}
                     </div>
                   </div>
+                  {vehicle.rate > 0 && (
+                    <div style={{ marginTop: "0.5rem", marginBottom: "0.5rem" }}>
+                      <span style={{ fontSize: "20px", fontWeight: 700, color: "#D4AF37" }}>
+                        ${vehicle.rate.toFixed(2)}
+                      </span>
+                      <span style={{ fontSize: "14px", color: "#9ca3af", marginLeft: "4px" }}>CAD</span>
+                    </div>
+                  )}
                   {vehicle.description && (
                     <p className={styles.description}>{vehicle.description}</p>
                   )}

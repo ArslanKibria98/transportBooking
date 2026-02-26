@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
       passengers: x.passengers || 0,
       luggage: x.luggage || 0,
       description: x.description || "",
+      rate: x.rate || 0,
     }))
   );
 }
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   // }
   const body = await req.json().catch(() => ({}));
-  const { name, category, image, passengers, luggage, description } = body;
+  const { name, category, image, passengers, luggage, description, rate } = body;
   if (!name || typeof name !== "string") {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
     passengers: Number(passengers) || 0,
     luggage: Number(luggage) || 0,
     description: description?.trim() || "",
+    rate: Number(rate) || 0,
   });
   return NextResponse.json(
     {
@@ -53,6 +55,7 @@ export async function POST(req: NextRequest) {
       passengers: created.passengers,
       luggage: created.luggage,
       description: created.description,
+      rate: created.rate,
     },
     { status: 201 }
   );

@@ -10,6 +10,7 @@ interface Vehicle {
   passengers: number;
   luggage: number;
   description: string;
+  rate: number;
 }
 
 export default function AdminVehiclesPage() {
@@ -27,6 +28,7 @@ export default function AdminVehiclesPage() {
     passengers: 0,
     luggage: 0,
     description: "",
+    rate: 0,
   });
 
   const loadVehicles = async () => {
@@ -66,7 +68,7 @@ export default function AdminVehiclesPage() {
       }
       setEditingId(null);
       setShowForm(false);
-      setFormData({ id: "", name: "", category: "", image: "", passengers: 0, luggage: 0, description: "" });
+      setFormData({ id: "", name: "", category: "", image: "", passengers: 0, luggage: 0, description: "", rate: 0 });
       loadVehicles();
     } catch (e: any) {
       setError(e.message);
@@ -97,7 +99,7 @@ export default function AdminVehiclesPage() {
           onClick={() => {
             setEditingId(null);
             setShowForm(true);
-            setFormData({ id: "", name: "", category: "", image: "", passengers: 0, luggage: 0, description: "" });
+            setFormData({ id: "", name: "", category: "", image: "", passengers: 0, luggage: 0, description: "", rate: 0 });
           }}
           disabled={loading}
           style={{
@@ -295,6 +297,25 @@ export default function AdminVehiclesPage() {
                     }}
                   />
                 </div>
+                <div>
+                  <label style={{ display: "block", marginBottom: 4, fontSize: 13 }}>Rate (CAD)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.rate}
+                    onChange={(e) => setFormData({ ...formData, rate: Number(e.target.value) })}
+                    placeholder="0.00"
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem",
+                      background: "#0a0a0a",
+                      border: "1px solid #374151",
+                      borderRadius: 4,
+                      color: "#e5e7eb",
+                    }}
+                  />
+                </div>
               </div>
             </div>
             <div style={{ marginBottom: "1rem" }}>
@@ -334,7 +355,7 @@ export default function AdminVehiclesPage() {
                 onClick={() => {
                   setEditingId(null);
                   setShowForm(false);
-                  setFormData({ id: "", name: "", category: "", image: "", passengers: 0, luggage: 0, description: "" });
+                  setFormData({ id: "", name: "", category: "", image: "", passengers: 0, luggage: 0, description: "", rate: 0 });
                 }}
                 style={{
                   padding: "0.5rem 1rem",
@@ -383,6 +404,14 @@ export default function AdminVehiclesPage() {
                   <span>👥 {v.passengers}</span>
                   <span>🧳 {v.luggage}</span>
                 </div>
+                {v.rate > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: "#D4AF37" }}>
+                      ${v.rate.toFixed(2)}
+                    </span>
+                    <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 4 }}>CAD</span>
+                  </div>
+                )}
                 {v.description && (
                   <p style={{ fontSize: 13, color: "#d1d5db", marginBottom: "1rem", lineHeight: 1.5 }}>
                     {v.description}

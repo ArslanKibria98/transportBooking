@@ -13,7 +13,7 @@ export async function PATCH(
   // }
   const { id } = await context.params;
   const body = await req.json().catch(() => ({}));
-  const { name, category, image, passengers, luggage, description } = body;
+  const { name, category, image, passengers, luggage, description, rate } = body;
   if (!name || typeof name !== "string") {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
@@ -28,6 +28,7 @@ export async function PATCH(
         passengers: Number(passengers) || 0,
         luggage: Number(luggage) || 0,
         description: description?.trim() || "",
+        rate: Number(rate) || 0,
       },
     }
   );

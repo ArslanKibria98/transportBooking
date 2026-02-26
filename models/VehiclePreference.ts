@@ -8,6 +8,7 @@ export interface VehiclePreferenceDoc {
   passengers?: number;
   luggage?: number;
   description?: string;
+  rate?: number; // Price/rate per trip
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,6 +21,7 @@ const VehiclePreferenceSchema = new Schema<VehiclePreferenceDoc>(
     passengers: { type: Number, default: 0 },
     luggage: { type: Number, default: 0 },
     description: { type: String, trim: true },
+    rate: { type: Number, default: 0 }, // Price/rate in CAD
   },
   { timestamps: true }
 );
