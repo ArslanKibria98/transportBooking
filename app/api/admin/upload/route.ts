@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import { uploadToCloudinary, isCloudinaryConfigured } from "@/lib/cloudinary";
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,7 +26,26 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create uploads directory if it doesn't exist
+    // Try Cloudinary first (if configured), otherwise fallback to local storage
+    if (isCloudinaryConfigured()) {
+      try {
+        console.log("[Upload] Using Cloudinary for storage");
+        const timestamp = Date.now();
+        const originalName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+        const filename = `${timestamp}-${originalName}`;
+        
+        const cloudinaryUrl = await uploadToCloudinary(buffer, filename);
+        console.log("[Upload] ✅ Uploaded to Cloudinary:", cloudinaryUrl);
+        return NextResponse.json({ url: cloudinaryUrl });
+      } catch (cloudinaryError: any) {
+        console.error("[Upload] Cloudinary upload failed:", cloudinaryError?.message || cloudinaryError);
+        console.log("[Upload] Falling back to local storage");
+        // Fall through to local storage
+      }
+    }
+
+    // Fallback to local storage
+    console.log("[Upload] Using local storage");
     const uploadsDir = join(process.cwd(), "public", "uploads", "vehicles");
     if (!existsSync(uploadsDir)) {
       await mkdir(uploadsDir, { recursive: true });
@@ -42,7 +62,6 @@ export async function POST(req: NextRequest) {
     console.log("[Upload] File saved to:", filepath);
 
     // Return public URL
-    // In production, use absolute URL for proper image loading
     const isProduction = process.env.NODE_ENV === "production";
     let baseUrl = "";
     
@@ -64,14 +83,10 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    // Use relative URL - Next.js automatically serves files from /public
-    // In production, we can use absolute URL if baseUrl is available
     const publicUrl = baseUrl ? `${baseUrl}/uploads/vehicles/${filename}` : `/uploads/vehicles/${filename}`;
     
-    // Note: Railway's filesystem is ephemeral - files get deleted on redeploy
-    // For permanent storage, consider using cloud storage (Cloudinary, S3, etc.)
-    
     console.log("[Upload] Environment:", isProduction ? "production" : "development");
+    console.log("[Upload] Storage: Local filesystem");
     console.log("[Upload] Base URL:", baseUrl || "relative (using /uploads/...)");
     console.log("[Upload] Returning URL:", publicUrl);
     return NextResponse.json({ url: publicUrl });
