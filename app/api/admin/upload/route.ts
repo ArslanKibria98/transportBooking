@@ -64,7 +64,12 @@ export async function POST(req: NextRequest) {
       }
     }
     
+    // Use relative URL - Next.js automatically serves files from /public
+    // In production, we can use absolute URL if baseUrl is available
     const publicUrl = baseUrl ? `${baseUrl}/uploads/vehicles/${filename}` : `/uploads/vehicles/${filename}`;
+    
+    // Note: Railway's filesystem is ephemeral - files get deleted on redeploy
+    // For permanent storage, consider using cloud storage (Cloudinary, S3, etc.)
     
     console.log("[Upload] Environment:", isProduction ? "production" : "development");
     console.log("[Upload] Base URL:", baseUrl || "relative (using /uploads/...)");

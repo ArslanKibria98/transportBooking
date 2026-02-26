@@ -75,15 +75,20 @@ export default function Fleet() {
                 <div className={styles.imageWrapper}>
                   {vehicle.image ? (
                     <img 
-                      src={vehicle.image} 
+                      src={vehicle.image.startsWith('http') ? vehicle.image : vehicle.image}
                       alt={vehicle.name} 
                       className={styles.vehicleImage}
+                      loading="lazy"
                       onError={(e) => {
                         // Fallback if image fails to load
-                        console.error("[Fleet] Image load error:", vehicle.image);
+                        console.error("[Fleet] Image load error for:", vehicle.name);
+                        console.error("[Fleet] Image URL:", vehicle.image);
                         e.currentTarget.style.display = 'none';
                         const fallback = e.currentTarget.nextElementSibling as HTMLElement;
                         if (fallback) fallback.style.display = 'flex';
+                      }}
+                      onLoad={() => {
+                        console.log("[Fleet] Image loaded successfully:", vehicle.image);
                       }}
                     />
                   ) : null}
