@@ -3,15 +3,10 @@ const { parse } = require("url");
 const next = require("next");
 const { Server } = require("socket.io");
 
-// const dev = process.env.NODE_ENV !== "production";
-// // In production, bind to 0.0.0.0 to accept connections from all interfaces
-// const hostname = process.env.HOSTNAME || (dev ? "localhost" : "0.0.0.0");
-// const port = parseInt(process.env.PORT || "3000", 10);
-
 const dev = process.env.NODE_ENV !== "production";
+// In production, bind to 0.0.0.0 to accept connections from all interfaces
+const hostname = process.env.HOSTNAME || (dev ? "localhost" : "0.0.0.0");
 const port = parseInt(process.env.PORT || "3000", 10);
-const hostname = dev ? "localhost" : "0.0.0.0";
-
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
