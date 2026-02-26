@@ -42,17 +42,34 @@ export async function POST(req: NextRequest) {
     console.log("[Upload] File saved to:", filepath);
 
     // Return public URL
-    // In production, use absolute URL if available
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
-                    process.env.RAILWAY_PUBLIC_DOMAIN ? 
-                      `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 
-                      '';
+    // In production, use absolute URL for proper image loading
+    const isProduction = process.env.NODE_ENV === "production";
+    let baseUrl = "";
+    
+    if (isProduction) {
+      // Try multiple sources for base URL
+      const host = process.env.RAILWAY_PUBLIC_DOMAIN || 
+                   process.env.NEXT_PUBLIC_BASE_URL ||
+                   process.env.VERCEL_URL;
+      
+      if (host) {
+        baseUrl = host.startsWith("http") ? host : `https://${host}`;
+      } else {
+        // Fallback: get from request headers
+        const protocol = req.headers.get("x-forwarded-proto") || "https";
+        const hostHeader = req.headers.get("host");
+        if (hostHeader) {
+          baseUrl = `${protocol}://${hostHeader}`;
+        }
+      }
+    }
+    
     const publicUrl = baseUrl ? `${baseUrl}/uploads/vehicles/${filename}` : `/uploads/vehicles/${filename}`;
     
+    console.log("[Upload] Environment:", isProduction ? "production" : "development");
+    console.log("[Upload] Base URL:", baseUrl || "relative (using /uploads/...)");
     console.log("[Upload] Returning URL:", publicUrl);
-    const response = NextResponse.json({ url: publicUrl });
-    console.log("[Upload] Response:", JSON.stringify({ url: publicUrl }));
-    return response;
+    return NextResponse.json({ url: publicUrl });
   } catch (error: any) {
     console.error("[Upload] Error:", error);
     return NextResponse.json(
