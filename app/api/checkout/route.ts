@@ -7,6 +7,7 @@ import { Reservation } from "@/models/Reservation";
 import { ServiceType } from "@/models/ServiceType";
 import { VehiclePreference } from "@/models/VehiclePreference";
 import { getIo } from "@/lib/socket";
+import { getExtraCharge } from "@/lib/settings";
 
 export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
@@ -84,7 +85,10 @@ export async function POST(req: Request) {
   const fuelSurcharge = baseRate * 0.05;
   const hst = baseRate * 0.13;
   const gratuity = baseRate * 0.15;
-  const totalRate = baseRate + fuelSurcharge + hst + gratuity;
+  // Admin-configurable extra charge (e.g. Driver Gratuity) — applied only when enabled
+  const extra = await getExtraCharge();
+  const extraAmount = extra.enabled ? baseRate * (extra.percent / 100) : 0;
+  const totalRate = baseRate + fuelSurcharge + hst + gratuity + extraAmount;
 
   // Create reservation with PENDING payment status
   const created = await Reservation.create({

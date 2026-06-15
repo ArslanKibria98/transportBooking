@@ -45,8 +45,11 @@ export default function VehiclePage() {
 
   const [direction, setDirection] = useState<"to" | "from">("to");
   const [rateResult, setRateResult] = useState<{
-    base: number; fuel: number; hst: number; gratuity: number; total: number;
+    base: number; fuel: number; hst: number; gratuity: number; extra: number; total: number;
   } | null>(null);
+  const [extraCharge, setExtraCharge] = useState<{ name: string; percent: number; enabled: boolean }>({
+    name: "Driver Gratuity", percent: 15, enabled: false,
+  });
   const [rateError, setRateError] = useState<string | null>(null);
 
   const cityDropdownRef = useRef<HTMLDivElement>(null);
@@ -59,11 +62,13 @@ export default function VehiclePage() {
       fetch(`/api/vehicles/${id}`).then(r => r.json()),
       fetch("/api/vehicles").then(r => r.json()),
       fetch("/api/airports").then(r => r.json()),
-    ]).then(([veh, all, airports]) => {
+      fetch("/api/settings").then(r => r.json()).catch(() => null),
+    ]).then(([veh, all, airports, settings]) => {
       if (veh.error) { router.replace("/"); return; }
       setVehicle(veh);
       setAllVehicles((all.items || []).filter((v: Vehicle) => v.id !== id));
       setAirportsList(Array.isArray(airports) ? airports : []);
+      if (settings?.extraCharge) setExtraCharge(settings.extraCharge);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [id]);
@@ -141,8 +146,9 @@ export default function VehiclePage() {
       const fuel = +(base * 0.05).toFixed(2);
       const hst = +(base * 0.13).toFixed(2);
       const gratuity = +(base * 0.15).toFixed(2);
-      const total = +(base + fuel + hst + gratuity).toFixed(2);
-      setRateResult({ base, fuel, hst, gratuity, total });
+      const extra = extraCharge.enabled ? +(base * (extraCharge.percent / 100)).toFixed(2) : 0;
+      const total = +(base + fuel + hst + gratuity + extra).toFixed(2);
+      setRateResult({ base, fuel, hst, gratuity, extra, total });
     } catch {
       setRateError("Something went wrong. Please try again.");
     }
@@ -262,6 +268,7 @@ export default function VehiclePage() {
                 </h2>
                 <p style={{ color: "#6C6C82", fontSize: 12, marginBottom: "1.25rem" }}>
                   One-way cost per vehicle · 5% Fuel Surcharge · 13% HST · 15% Driver Gratuity
+                  {extraCharge.enabled ? ` · ${extraCharge.percent}% ${extraCharge.name}` : ""}
                 </p>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.25rem" }}>
@@ -371,6 +378,12 @@ export default function VehiclePage() {
                       <span>Fuel Surcharge (5%):</span><span style={{ textAlign: "right", color: "#12172B" }}>CA${rateResult.fuel.toFixed(2)}</span>
                       <span>HST (13%):</span><span style={{ textAlign: "right", color: "#12172B" }}>CA${rateResult.hst.toFixed(2)}</span>
                       <span>Driver Gratuity (15%):</span><span style={{ textAlign: "right", color: "#12172B" }}>CA${rateResult.gratuity.toFixed(2)}</span>
+                      {extraCharge.enabled && (
+                        <>
+                          <span>{extraCharge.name} ({extraCharge.percent}%):</span>
+                          <span style={{ textAlign: "right", color: "#12172B" }}>CA${rateResult.extra.toFixed(2)}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { WEBSITE_CITIES } from "@/lib/websiteCities";
 
 interface RateEntry {
   id: string;
@@ -38,15 +39,23 @@ export default function AdminRatesPage() {
   const [bulkAdjust, setBulkAdjust] = useState<number>(0);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [success, setSuccess]       = useState<string | null>(null);
+  const [extraCharge, setExtraCharge] = useState<{ name: string; percent: number; enabled: boolean }>({
+    name: "Driver Gratuity", percent: 15, enabled: false,
+  });
+
+  // Multiplier including the configurable extra charge (1.33 = base surcharges)
+  const extraMult = extraCharge.enabled ? extraCharge.percent / 100 : 0;
+  const totalMult = 1.33 + extraMult;
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [rRes, aRes, vRes] = await Promise.all([
+      const [rRes, aRes, vRes, sRes] = await Promise.all([
         fetch("/api/admin/rates"),
         fetch("/api/admin/airports"),
         fetch("/api/vehicles"),
+        fetch("/api/admin/settings"),
       ]);
       if (!rRes.ok) throw new Error("Failed to load rates");
       setRates(await rRes.json());
@@ -54,6 +63,14 @@ export default function AdminRatesPage() {
       if (vRes.ok) {
         const vData = await vRes.json();
         setVehicles((vData.items || []).map((v: any) => ({ id: v.id, name: v.name })));
+      }
+      if (sRes.ok) {
+        const s = await sRes.json();
+        setExtraCharge({
+          name: s.extraChargeName ?? "Driver Gratuity",
+          percent: s.extraChargePercent ?? 15,
+          enabled: s.extraChargeEnabled ?? false,
+        });
       }
     } catch (e: any) {
       setError(e.message);
@@ -63,6 +80,18 @@ export default function AdminRatesPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Auto-select the first vehicle available for the selected airport (runs after
+  // the airport is chosen, so the picked vehicle is valid for that airport).
+  useEffect(() => {
+    if (loading || !airportFilter) return;
+    const carTypes = Array.from(
+      new Set(rates.filter(r => r.airport === airportFilter).map(r => r.carType))
+    ).sort();
+    if (carTypes.length > 0 && !carTypes.includes(carTypeFilter)) {
+      setCarTypeFilter(carTypes[0]);
+    }
+  }, [loading, airportFilter, rates, carTypeFilter]);
 
   const openAdd = () => {
     setEditingId(null);
@@ -152,18 +181,24 @@ export default function AdminRatesPage() {
     setAirportFilter(uniqueAirports[0]);
   }
 
-  // Auto-select first car type if none selected
-  if (!carTypeFilter && uniqueCarTypes.length > 0 && !loading) {
-    setCarTypeFilter(uniqueCarTypes[0]);
+  // Show every serviceable city (the full website list). A city without a rate
+  // for the selected airport + vehicle appears as a placeholder with base rate 0
+  // (id === "") that the admin can fill in via Edit.
+  const rateIndex = new Map<string, RateEntry>();
+  for (const r of rates) {
+    if (r.carType === carTypeFilter && (!airportFilter || r.airport === airportFilter)) {
+      rateIndex.set(r.destination, r);
+    }
   }
+  const allCities = Array.from(new Set([...WEBSITE_CITIES, ...rates.map(r => r.destination)]));
+  const fullRows: RateEntry[] = allCities.map(
+    city => rateIndex.get(city) ?? { id: "", destination: city, tariff: 0, carType: carTypeFilter, airport: airportFilter }
+  );
 
-  const filtered = rates.filter(r => {
-    const matchesSearch = r.destination.toLowerCase().includes(search.toLowerCase()) ||
-      r.carType.toLowerCase().includes(search.toLowerCase());
-    const matchesType = r.carType === carTypeFilter;
-    const matchesAirport = !airportFilter || r.airport === airportFilter;
-    return matchesSearch && matchesType && matchesAirport;
-  }).sort((a, b) => a.destination.localeCompare(b.destination));
+  const filtered = fullRows.filter(r =>
+    r.destination.toLowerCase().includes(search.toLowerCase()) ||
+    r.carType.toLowerCase().includes(search.toLowerCase())
+  ).sort((a, b) => a.destination.localeCompare(b.destination));
 
   const totalPages = Math.ceil(filtered.length / perPage);
   const safePage = Math.min(page, totalPages || 1);
@@ -276,7 +311,8 @@ export default function AdminRatesPage() {
                 <strong style={{ color: "#D4AF37" }}>Preview:</strong> {formData.destination} · {formData.carType} ·{" "}
                 <strong style={{ color: "#16a34a" }}>CA${Number(formData.tariff).toFixed(2)}</strong>{" "}
                 <span style={{ color: "#64748b" }}>
-                  → Fuel 5%: CA${(formData.tariff * 0.05).toFixed(2)} · HST 13%: CA${(formData.tariff * 0.13).toFixed(2)} · Gratuity 15%: CA${(formData.tariff * 0.15).toFixed(2)} · <strong style={{ color: "#16a34a" }}>Total: CA${(formData.tariff * 1.33).toFixed(2)}</strong>
+                  → Fuel 5%: CA${(formData.tariff * 0.05).toFixed(2)} · HST 13%: CA${(formData.tariff * 0.13).toFixed(2)} · Gratuity 15%: CA${(formData.tariff * 0.15).toFixed(2)}
+                  {extraCharge.enabled ? ` · ${extraCharge.name} ${extraCharge.percent}%: CA$${(formData.tariff * extraMult).toFixed(2)}` : ""} · <strong style={{ color: "#16a34a" }}>Total: CA${(formData.tariff * totalMult).toFixed(2)}</strong>
                 </span>
               </div>
             )}
@@ -422,18 +458,23 @@ export default function AdminRatesPage() {
                 <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Fuel 5%</th>
                 <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>HST 13%</th>
                 <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Gratuity 15%</th>
+                {extraCharge.enabled && (
+                  <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>{extraCharge.name} {extraCharge.percent}%</th>
+                )}
                 <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Total</th>
                 <th style={{ textAlign: "center", padding: "0.75rem 1.25rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {paginated.map((r, i) => (
-                <tr key={r.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 === 0 ? "transparent" : "#f8fafc" }}>
-                  <td style={{ padding: "0.85rem 1.25rem", color: "#1e293b", fontWeight: 500 }}>{r.destination}</td>
+              {paginated.map((r, i) => {
+                const unset = !r.id; // city with no rate set for this airport+vehicle
+                return (
+                <tr key={r.id || `${r.airport}|${r.carType}|${r.destination}`} style={{ borderBottom: "1px solid #e2e8f0", background: unset ? "#fcfcfd" : i % 2 === 0 ? "transparent" : "#f8fafc" }}>
+                  <td style={{ padding: "0.85rem 1.25rem", color: unset ? "#64748b" : "#1e293b", fontWeight: 500 }}>{r.destination}</td>
                   <td style={{ padding: "0.85rem 1rem", color: "#64748b" }}>
                     <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", padding: "0.2rem 0.6rem", borderRadius: 4, fontSize: 12, color: "#1e293b" }}>{r.carType}</span>
                   </td>
-                  <td style={{ padding: "0.85rem 1rem", color: "#D4AF37", fontWeight: 700, textAlign: "right" }}>
+                  <td style={{ padding: "0.85rem 1rem", color: unset ? "#94a3b8" : "#D4AF37", fontWeight: 700, textAlign: "right" }}>
                     CA${r.tariff.toFixed(2)}
                   </td>
                   <td style={{ padding: "0.85rem 1rem", color: "#64748b", textAlign: "right" }}>
@@ -445,23 +486,31 @@ export default function AdminRatesPage() {
                   <td style={{ padding: "0.85rem 1rem", color: "#64748b", textAlign: "right" }}>
                     CA${(r.tariff * 0.15).toFixed(2)}
                   </td>
+                  {extraCharge.enabled && (
+                    <td style={{ padding: "0.85rem 1rem", color: "#64748b", textAlign: "right" }}>
+                      CA${(r.tariff * extraMult).toFixed(2)}
+                    </td>
+                  )}
                   <td style={{ padding: "0.85rem 1rem", color: "#16a34a", fontWeight: 600, textAlign: "right" }}>
-                    CA${(r.tariff * 1.33).toFixed(2)}
+                    CA${(r.tariff * totalMult).toFixed(2)}
                   </td>
                   <td style={{ padding: "0.85rem 1.25rem", textAlign: "center" }}>
                     <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
                       <button onClick={() => openEdit(r)}
-                        style={{ padding: "0.35rem 0.85rem", background: "#f1f5f9", color: "#1e293b", border: "1px solid #e2e8f0", borderRadius: 4, cursor: "pointer", fontSize: 12 }}>
-                        Edit
+                        style={{ padding: "0.35rem 0.85rem", background: unset ? "#D4AF37" : "#f1f5f9", color: unset ? "#000" : "#1e293b", border: unset ? "none" : "1px solid #e2e8f0", borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: unset ? 600 : 400 }}>
+                        {unset ? "Set" : "Edit"}
                       </button>
-                      <button onClick={() => handleDelete(r.id)}
-                        style={{ padding: "0.35rem 0.85rem", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 4, cursor: "pointer", fontSize: 12 }}>
-                        Delete
-                      </button>
+                      {!unset && (
+                        <button onClick={() => handleDelete(r.id)}
+                          style={{ padding: "0.35rem 0.85rem", background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 4, cursor: "pointer", fontSize: 12 }}>
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
 
@@ -532,6 +581,9 @@ export default function AdminRatesPage() {
           • All rates are subject to <strong style={{ color: "#1e293b" }}>5% Fuel Surcharge</strong><br />
           • All rates are subject to <strong style={{ color: "#1e293b" }}>13% HST</strong> (government tax)<br />
           • All reservations are subject to <strong style={{ color: "#1e293b" }}>15% Driver Gratuity</strong>
+          {extraCharge.enabled && (
+            <><br />• All rates are subject to <strong style={{ color: "#1e293b" }}>{extraCharge.percent}% {extraCharge.name}</strong> <span style={{ color: "#94a3b8" }}>(configurable in Settings)</span></>
+          )}
         </div>
       )}
     </div>

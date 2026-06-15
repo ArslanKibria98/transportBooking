@@ -7,7 +7,7 @@ interface VehicleOption {
   rate?: number;
   image?: string;
   passengers?: number;
-  bags?: number;
+  luggage?: number;
 }
 
 interface CompareEntry {
@@ -44,9 +44,16 @@ export default function RateCalculator() {
     fuel: number;
     hst: number;
     gratuity: number;
+    extra: number;
   } | null>(null);
+  const [extraCharge, setExtraCharge] = useState<{ name: string; percent: number; enabled: boolean }>({
+    name: "Driver Gratuity",
+    percent: 15,
+    enabled: false,
+  });
   const [compareRates, setCompareRates] = useState<CompareEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showContact, setShowContact] = useState(false);
   const [visibleCount, setVisibleCount] = useState(50);
   const cityDropdownRef = useRef<HTMLDivElement>(null);
   const airportDropdownRef = useRef<HTMLDivElement>(null);
@@ -57,15 +64,20 @@ export default function RateCalculator() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [vRes, aRes] = await Promise.all([
+        const [vRes, aRes, sRes] = await Promise.all([
           fetch("/api/vehicles"),
           fetch("/api/airports"),
+          fetch("/api/settings"),
         ]);
         const vData = await vRes.json();
         setVehicles(vData.items || []);
         if (aRes.ok) {
           const aData = await aRes.json();
           setAirportsList(Array.isArray(aData) ? aData : []);
+        }
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          if (sData?.extraCharge) setExtraCharge(sData.extraCharge);
         }
       } catch (e) {
         console.error("Failed to load data", e);
@@ -92,6 +104,7 @@ export default function RateCalculator() {
     loadCities();
     setCalculatedRate(null);
     setCompareRates([]);
+    setShowContact(false);
   }, [selectedAirport]);
 
   const airportOptions = useMemo(() =>
@@ -144,12 +157,14 @@ export default function RateCalculator() {
     setShowCityDropdown(false);
     setCalculatedRate(null);
     setCompareRates([]);
+    setShowContact(false);
   };
 
   const handleGetRates = async () => {
     setError(null);
     setCalculatedRate(null);
     setCompareRates([]);
+    setShowContact(false);
 
     if (!selectedCity || !selectedVehicle) {
       setError("Please select a City and Vehicle first.");
@@ -160,7 +175,8 @@ export default function RateCalculator() {
     try {
       const res = await fetch(`/api/rates/lookup?carType=${encodeURIComponent(selectedVehicle)}&destination=${encodeURIComponent(selectedCity)}&airport=${encodeURIComponent(airportCode)}`);
       if (!res.ok) {
-        setError("Rate not found for this combination. Please contact us.");
+        // No published rate for this city/airport/vehicle — prompt to contact us.
+        setShowContact(true);
         return;
       }
       const data = await res.json();
@@ -168,8 +184,9 @@ export default function RateCalculator() {
       const fuel = baseRate * 0.05;
       const hst = baseRate * 0.13;
       const gratuity = baseRate * 0.15;
-      const total = baseRate + fuel + hst + gratuity;
-      setCalculatedRate({ base: baseRate, total, fuel, hst, gratuity });
+      const extra = extraCharge.enabled ? baseRate * (extraCharge.percent / 100) : 0;
+      const total = baseRate + fuel + hst + gratuity + extra;
+      setCalculatedRate({ base: baseRate, total, fuel, hst, gratuity, extra });
 
       const cRes = await fetch(`/api/rates/compare?destination=${encodeURIComponent(selectedCity)}&airport=${encodeURIComponent(airportCode)}`);
       if (cRes.ok) {
@@ -217,6 +234,7 @@ export default function RateCalculator() {
         <li>All rates are subject to 5% Fuel Surcharge</li>
         <li>All rates are subject to 13% HST (government tax)</li>
         <li>All reservations are subject to 15% driver gratuity</li>
+        {extraCharge.enabled && <li>All rates are subject to {extraCharge.percent}% {extraCharge.name}</li>}
       </ul>
 
       <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", padding: "2rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
@@ -367,6 +385,7 @@ export default function RateCalculator() {
                           setShowVehicleDropdown(false);
                           setCalculatedRate(null);
                           setCompareRates([]);
+                          setShowContact(false);
                         }}
                         style={{ padding: "0.6rem 1rem", cursor: "pointer", fontSize: 14, color: "#1e293b", borderBottom: "1px solid #f1f5f9", transition: "background 0.1s" }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,175,55,0.1)"; }}
@@ -391,7 +410,7 @@ export default function RateCalculator() {
                 <img src={selectedVehObj.image} alt={selectedVehObj.name} style={{ maxWidth: "100%", maxHeight: "250px", objectFit: "contain", filter: "drop-shadow(0 10px 15px rgba(0,0,0,0.15))", marginBottom: "1rem" }} />
                 <div style={{ display: "flex", gap: "1.5rem", color: "#475569", fontSize: "0.95rem" }}>
                   {selectedVehObj.passengers && <span><strong>Passengers:</strong> Up to {selectedVehObj.passengers}</span>}
-                  {selectedVehObj.bags && <span><strong>Luggage:</strong> Up to {selectedVehObj.bags}</span>}
+                  {selectedVehObj.luggage && <span><strong>Luggage:</strong> Up to {selectedVehObj.luggage}</span>}
                 </div>
               </div>
             );
@@ -402,6 +421,34 @@ export default function RateCalculator() {
         {error && (
           <div style={{ backgroundColor: "#fef2f2", borderLeft: "4px solid #dc2626", padding: "1.25rem", borderRadius: "4px", color: "#dc2626", fontSize: "0.95rem", marginBottom: "1.5rem" }}>
             <strong>Note:</strong> {error}
+          </div>
+        )}
+
+        {/* Contact Us — shown when no published rate exists for the selection */}
+        {showContact && (
+          <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fcd34d", borderLeft: "4px solid #D4AF37", padding: "1.5rem", borderRadius: "6px", marginBottom: "1.5rem" }}>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.5rem" }}>
+              Please contact us for this rate
+            </div>
+            <p style={{ fontSize: "0.95rem", color: "#475569", marginBottom: "1rem", lineHeight: 1.6 }}>
+              We don&apos;t have an online rate published for{" "}
+              <strong>{selectedVehicle}</strong> to/from{" "}
+              <strong>{selectedCity}</strong>
+              {selectedAirport ? ` (${selectedAirport})` : ""}. Our team will be happy to give you a personalized quote.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
+              <a href="tel:4166190050" style={{ backgroundColor: "#D4AF37", color: "#1e293b", textDecoration: "none", padding: "0.7rem 1.4rem", fontSize: "0.95rem", fontWeight: 600, borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                Call (416) 619-0050
+              </a>
+              <a href="mailto:reservations@torontoairportlimo.com" style={{ backgroundColor: "#ffffff", color: "#1e293b", textDecoration: "none", padding: "0.7rem 1.4rem", fontSize: "0.95rem", fontWeight: 600, borderRadius: "4px", border: "1px solid #d1d5db", display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                Email Us
+              </a>
+              <button onClick={scrollToReservation} style={{ backgroundColor: "#6366f1", color: "white", border: "none", padding: "0.7rem 1.4rem", fontSize: "0.95rem", fontWeight: 600, borderRadius: "4px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                Request a Quote
+              </button>
+            </div>
           </div>
         )}
 
@@ -433,7 +480,8 @@ export default function RateCalculator() {
               Total: ${calculatedRate.total.toFixed(2)}
             </div>
             <div style={{ fontSize: "0.95rem", color: "#64748b", fontStyle: "italic" }}>
-              (Base Rate: ${calculatedRate.base.toFixed(2)} + 5% Fuel Surcharge + 13% HST + 15% Driver Gratuity)
+              (Base Rate: ${calculatedRate.base.toFixed(2)} + 5% Fuel Surcharge + 13% HST + 15% Driver Gratuity
+              {extraCharge.enabled ? ` + ${extraCharge.percent}% ${extraCharge.name}` : ""})
             </div>
           </div>
         )}
