@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { ExtraChargeConfig, DEFAULT_CONFIG, resolveExtraCharge } from "@/lib/extraChargeResolve";
 
 interface VehicleOption {
   id: string;
@@ -45,12 +46,11 @@ export default function RateCalculator() {
     hst: number;
     gratuity: number;
     extra: number;
+    extraName: string;
+    extraPercent: number;
+    extraApplied: boolean;
   } | null>(null);
-  const [extraCharge, setExtraCharge] = useState<{ name: string; percent: number; enabled: boolean }>({
-    name: "Driver Gratuity",
-    percent: 15,
-    enabled: false,
-  });
+  const [extraConfig, setExtraConfig] = useState<ExtraChargeConfig>({ ...DEFAULT_CONFIG, enabled: false });
   const [compareRates, setCompareRates] = useState<CompareEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showContact, setShowContact] = useState(false);
@@ -77,7 +77,7 @@ export default function RateCalculator() {
         }
         if (sRes.ok) {
           const sData = await sRes.json();
-          if (sData?.extraCharge) setExtraCharge(sData.extraCharge);
+          if (sData && typeof sData.enabled === "boolean") setExtraConfig(sData);
         }
       } catch (e) {
         console.error("Failed to load data", e);
@@ -184,9 +184,13 @@ export default function RateCalculator() {
       const fuel = baseRate * 0.05;
       const hst = baseRate * 0.13;
       const gratuity = baseRate * 0.15;
-      const extra = extraCharge.enabled ? baseRate * (extraCharge.percent / 100) : 0;
+      const resolved = resolveExtraCharge(extraConfig, selectedVehicle);
+      const extra = resolved.enabled ? baseRate * (resolved.percent / 100) : 0;
       const total = baseRate + fuel + hst + gratuity + extra;
-      setCalculatedRate({ base: baseRate, total, fuel, hst, gratuity, extra });
+      setCalculatedRate({
+        base: baseRate, total, fuel, hst, gratuity, extra,
+        extraName: resolved.name, extraPercent: resolved.percent, extraApplied: resolved.enabled,
+      });
 
       const cRes = await fetch(`/api/rates/compare?destination=${encodeURIComponent(selectedCity)}&airport=${encodeURIComponent(airportCode)}`);
       if (cRes.ok) {
@@ -234,7 +238,7 @@ export default function RateCalculator() {
         <li>All rates are subject to 5% Fuel Surcharge</li>
         <li>All rates are subject to 13% HST (government tax)</li>
         <li>All reservations are subject to 15% driver gratuity</li>
-        {extraCharge.enabled && <li>All rates are subject to {extraCharge.percent}% {extraCharge.name}</li>}
+        {extraConfig.enabled && <li>{extraConfig.name} may also apply (varies by vehicle)</li>}
       </ul>
 
       <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", padding: "2rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
@@ -481,7 +485,7 @@ export default function RateCalculator() {
             </div>
             <div style={{ fontSize: "0.95rem", color: "#64748b", fontStyle: "italic" }}>
               (Base Rate: ${calculatedRate.base.toFixed(2)} + 5% Fuel Surcharge + 13% HST + 15% Driver Gratuity
-              {extraCharge.enabled ? ` + ${extraCharge.percent}% ${extraCharge.name}` : ""})
+              {calculatedRate.extraApplied ? ` + ${calculatedRate.extraPercent}% ${calculatedRate.extraName}` : ""})
             </div>
           </div>
         )}

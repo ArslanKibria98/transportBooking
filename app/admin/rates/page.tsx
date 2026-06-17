@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { ExtraChargeConfig, DEFAULT_CONFIG, resolveExtraCharge, totalMultiplierFor } from "@/lib/extraChargeResolve";
 import { WEBSITE_CITIES } from "@/lib/websiteCities";
 
 interface RateEntry {
@@ -39,13 +40,7 @@ export default function AdminRatesPage() {
   const [bulkAdjust, setBulkAdjust] = useState<number>(0);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [success, setSuccess]       = useState<string | null>(null);
-  const [extraCharge, setExtraCharge] = useState<{ name: string; percent: number; enabled: boolean }>({
-    name: "Driver Gratuity", percent: 15, enabled: false,
-  });
-
-  // Multiplier including the configurable extra charge (1.33 = base surcharges)
-  const extraMult = extraCharge.enabled ? extraCharge.percent / 100 : 0;
-  const totalMult = 1.33 + extraMult;
+  const [extraConfig, setExtraConfig] = useState<ExtraChargeConfig>({ ...DEFAULT_CONFIG, enabled: false });
 
   const load = async () => {
     setLoading(true);
@@ -66,10 +61,11 @@ export default function AdminRatesPage() {
       }
       if (sRes.ok) {
         const s = await sRes.json();
-        setExtraCharge({
+        setExtraConfig({
           name: s.extraChargeName ?? "Driver Gratuity",
-          percent: s.extraChargePercent ?? 15,
           enabled: s.extraChargeEnabled ?? false,
+          defaultPercent: s.extraChargePercent ?? 15,
+          vehicleCharges: Array.isArray(s.vehicleCharges) ? s.vehicleCharges : [],
         });
       }
     } catch (e: any) {
@@ -204,6 +200,9 @@ export default function AdminRatesPage() {
   const safePage = Math.min(page, totalPages || 1);
   const paginated = filtered.slice((safePage - 1) * perPage, safePage * perPage);
 
+  const previewExtra = resolveExtraCharge(extraConfig, formData.carType);
+  const previewTotalMult = totalMultiplierFor(extraConfig, formData.carType);
+
   const inputStyle: React.CSSProperties = {
     width: "100%", padding: "0.6rem 0.75rem",
     background: "#ffffff", border: "1px solid #d1d5db",
@@ -312,7 +311,7 @@ export default function AdminRatesPage() {
                 <strong style={{ color: "#16a34a" }}>CA${Number(formData.tariff).toFixed(2)}</strong>{" "}
                 <span style={{ color: "#64748b" }}>
                   → Fuel 5%: CA${(formData.tariff * 0.05).toFixed(2)} · HST 13%: CA${(formData.tariff * 0.13).toFixed(2)} · Gratuity 15%: CA${(formData.tariff * 0.15).toFixed(2)}
-                  {extraCharge.enabled ? ` · ${extraCharge.name} ${extraCharge.percent}%: CA$${(formData.tariff * extraMult).toFixed(2)}` : ""} · <strong style={{ color: "#16a34a" }}>Total: CA${(formData.tariff * totalMult).toFixed(2)}</strong>
+                  {previewExtra.enabled ? ` · ${previewExtra.name} ${previewExtra.percent}%: CA$${(formData.tariff * previewExtra.percent / 100).toFixed(2)}` : ""} · <strong style={{ color: "#16a34a" }}>Total: CA${(formData.tariff * previewTotalMult).toFixed(2)}</strong>
                 </span>
               </div>
             )}
@@ -458,8 +457,8 @@ export default function AdminRatesPage() {
                 <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Fuel 5%</th>
                 <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>HST 13%</th>
                 <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Gratuity 15%</th>
-                {extraCharge.enabled && (
-                  <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>{extraCharge.name} {extraCharge.percent}%</th>
+                {extraConfig.enabled && (
+                  <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>{extraConfig.name}</th>
                 )}
                 <th style={{ textAlign: "right", padding: "0.75rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Total</th>
                 <th style={{ textAlign: "center", padding: "0.75rem 1.25rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Actions</th>
@@ -486,13 +485,16 @@ export default function AdminRatesPage() {
                   <td style={{ padding: "0.85rem 1rem", color: "#64748b", textAlign: "right" }}>
                     CA${(r.tariff * 0.15).toFixed(2)}
                   </td>
-                  {extraCharge.enabled && (
-                    <td style={{ padding: "0.85rem 1rem", color: "#64748b", textAlign: "right" }}>
-                      CA${(r.tariff * extraMult).toFixed(2)}
-                    </td>
-                  )}
+                  {extraConfig.enabled && (() => {
+                    const re = resolveExtraCharge(extraConfig, r.carType);
+                    return (
+                      <td style={{ padding: "0.85rem 1rem", color: re.enabled ? "#64748b" : "#cbd5e1", textAlign: "right" }}>
+                        {re.enabled ? `CA$${(r.tariff * re.percent / 100).toFixed(2)} (${re.percent}%)` : "—"}
+                      </td>
+                    );
+                  })()}
                   <td style={{ padding: "0.85rem 1rem", color: "#16a34a", fontWeight: 600, textAlign: "right" }}>
-                    CA${(r.tariff * totalMult).toFixed(2)}
+                    CA${(r.tariff * totalMultiplierFor(extraConfig, r.carType)).toFixed(2)}
                   </td>
                   <td style={{ padding: "0.85rem 1.25rem", textAlign: "center" }}>
                     <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
@@ -581,8 +583,8 @@ export default function AdminRatesPage() {
           • All rates are subject to <strong style={{ color: "#1e293b" }}>5% Fuel Surcharge</strong><br />
           • All rates are subject to <strong style={{ color: "#1e293b" }}>13% HST</strong> (government tax)<br />
           • All reservations are subject to <strong style={{ color: "#1e293b" }}>15% Driver Gratuity</strong>
-          {extraCharge.enabled && (
-            <><br />• All rates are subject to <strong style={{ color: "#1e293b" }}>{extraCharge.percent}% {extraCharge.name}</strong> <span style={{ color: "#94a3b8" }}>(configurable in Settings)</span></>
+          {extraConfig.enabled && (
+            <><br />• <strong style={{ color: "#1e293b" }}>{extraConfig.name}</strong> applies per vehicle <span style={{ color: "#94a3b8" }}>(configure rates per vehicle in Settings)</span></>
           )}
         </div>
       )}

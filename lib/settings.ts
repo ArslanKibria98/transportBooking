@@ -1,29 +1,21 @@
 import { dbConnect } from "@/lib/mongodb";
 import { Settings } from "@/models/Settings";
+import {
+  ExtraChargeConfig,
+  DEFAULT_CONFIG,
+  BASE_MULTIPLIER,
+  resolveExtraCharge,
+  totalMultiplierFor,
+} from "@/lib/extraChargeResolve";
 
-export interface ExtraChargeConfig {
-  name: string;
-  percent: number;
-  enabled: boolean;
-}
-
-export const DEFAULT_EXTRA_CHARGE: ExtraChargeConfig = {
-  name: "Driver Gratuity",
-  percent: 15,
-  enabled: true,
-};
-
-// Fixed surcharges already baked into every rate.
-export const FUEL_PCT = 0.05;
-export const HST_PCT = 0.13;
-export const GRATUITY_PCT = 0.15;
-export const BASE_MULTIPLIER = 1 + FUEL_PCT + HST_PCT + GRATUITY_PCT; // 1.33
+export type { ExtraChargeConfig };
+export { BASE_MULTIPLIER, resolveExtraCharge, totalMultiplierFor, DEFAULT_CONFIG };
 
 /**
- * Returns the admin-configured extra charge. Creates the singleton settings
- * document with defaults the first time it's requested.
+ * Returns the full admin-configured extra charge config. Creates the singleton
+ * settings document with defaults the first time it's requested.
  */
-export async function getExtraCharge(): Promise<ExtraChargeConfig> {
+export async function getExtraChargeConfig(): Promise<ExtraChargeConfig> {
   await dbConnect();
   let doc = await (Settings as any).findOne({ key: "global" }).lean();
   if (!doc) {
@@ -31,13 +23,16 @@ export async function getExtraCharge(): Promise<ExtraChargeConfig> {
     doc = await (Settings as any).findOne({ key: "global" }).lean();
   }
   return {
-    name: doc?.extraChargeName ?? DEFAULT_EXTRA_CHARGE.name,
-    percent: typeof doc?.extraChargePercent === "number" ? doc.extraChargePercent : DEFAULT_EXTRA_CHARGE.percent,
-    enabled: doc?.extraChargeEnabled ?? DEFAULT_EXTRA_CHARGE.enabled,
+    name: doc?.extraChargeName ?? DEFAULT_CONFIG.name,
+    enabled: doc?.extraChargeEnabled ?? DEFAULT_CONFIG.enabled,
+    defaultPercent:
+      typeof doc?.extraChargePercent === "number" ? doc.extraChargePercent : DEFAULT_CONFIG.defaultPercent,
+    vehicleCharges: Array.isArray(doc?.vehicleCharges)
+      ? doc.vehicleCharges.map((v: any) => ({
+          vehicle: v.vehicle,
+          percent: Number(v.percent) || 0,
+          enabled: Boolean(v.enabled),
+        }))
+      : [],
   };
-}
-
-/** Total multiplier including the extra charge when enabled. */
-export function totalMultiplier(extra: ExtraChargeConfig): number {
-  return BASE_MULTIPLIER + (extra.enabled ? extra.percent / 100 : 0);
 }

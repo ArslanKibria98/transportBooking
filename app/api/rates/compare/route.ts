@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/mongodb";
 import { Rate } from "@/models/Rate";
 import { VehiclePreference } from "@/models/VehiclePreference";
-import { getExtraCharge, totalMultiplier } from "@/lib/settings";
+import { getExtraChargeConfig, totalMultiplierFor } from "@/lib/settings";
 
 // GET /api/rates/compare?destination=Barrie
 // Returns all vehicles with their tariff for a given destination
@@ -25,15 +25,14 @@ export async function GET(req: NextRequest) {
     vehicleMap[v.name] = v.passengers ?? 4;
   }
 
-  // Include the admin-configurable extra charge (when enabled) in the total
-  const extra = await getExtraCharge();
-  const mult = totalMultiplier(extra);
+  // Include the admin-configurable extra charge (resolved per vehicle) in the total
+  const extraConfig = await getExtraChargeConfig();
 
   const result = rates.map((r: any) => ({
     carType: r.carType,
     tariff: r.tariff,
     maxPassengers: vehicleMap[r.carType] ?? 4,
-    total: +(r.tariff * mult).toFixed(2),
+    total: +(r.tariff * totalMultiplierFor(extraConfig, r.carType)).toFixed(2),
   }));
 
   // Sort by tariff ascending

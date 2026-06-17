@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { servicesData } from "@/lib/servicesData";
+import { ExtraChargeConfig, DEFAULT_CONFIG, resolveExtraCharge } from "@/lib/extraChargeResolve";
 
 interface AirportOption {
   id: string;
@@ -42,9 +43,7 @@ export default function ServicePage() {
 
   const [direction, setDirection] = useState<"to"|"from">("to");
   const [rateResult, setRateResult] = useState<{ base: number; fuel: number; hst: number; gratuity: number; extra: number; total: number } | null>(null);
-  const [extraCharge, setExtraCharge] = useState<{ name: string; percent: number; enabled: boolean }>({
-    name: "Driver Gratuity", percent: 15, enabled: false,
-  });
+  const [extraConfig, setExtraConfig] = useState<ExtraChargeConfig>({ ...DEFAULT_CONFIG, enabled: false });
   const [rateError, setRateError] = useState<string | null>(null);
 
   const cityDropdownRef = useRef<HTMLDivElement>(null);
@@ -66,7 +65,7 @@ export default function ServicePage() {
     ]).then(([airports, vData, settings]) => {
       setAirportsList(Array.isArray(airports) ? airports : []);
       setVehiclesList(vData.items || []);
-      if (settings?.extraCharge) setExtraCharge(settings.extraCharge);
+      if (settings && typeof settings.enabled === "boolean") setExtraConfig(settings);
     }).catch(() => {});
   }, []);
 
@@ -143,7 +142,8 @@ export default function ServicePage() {
       const fuel = +(base * 0.05).toFixed(2);
       const hst  = +(base * 0.13).toFixed(2);
       const gratuity = +(base * 0.15).toFixed(2);
-      const extra = extraCharge.enabled ? +(base * (extraCharge.percent / 100)).toFixed(2) : 0;
+      const resolved = resolveExtraCharge(extraConfig, selectedVehicle);
+      const extra = resolved.enabled ? +(base * (resolved.percent / 100)).toFixed(2) : 0;
       const total = +(base + fuel + hst + gratuity + extra).toFixed(2);
       setRateResult({ base, fuel, hst, gratuity, extra, total });
     } catch {
@@ -152,6 +152,7 @@ export default function ServicePage() {
   };
 
   const otherServices = servicesData.filter(s => s.slug !== slug);
+  const resolvedExtra = resolveExtraCharge(extraConfig, selectedVehicle);
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
@@ -266,7 +267,7 @@ export default function ServicePage() {
                 <h2 style={{ color: "#12172B", fontSize: 17, fontWeight: 600, marginBottom: "0.4rem" }}>Rate Calculator</h2>
                 <p style={{ color: "#6C6C82", fontSize: 12, marginBottom: "1.25rem" }}>
                   One-way per vehicle · 5% Fuel Surcharge · 13% HST · 15% Driver Gratuity
-                  {extraCharge.enabled ? ` · ${extraCharge.percent}% ${extraCharge.name}` : ""}
+                  {resolvedExtra.enabled && selectedVehicle ? ` · ${resolvedExtra.percent}% ${resolvedExtra.name}` : ""}
                 </p>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
@@ -407,9 +408,9 @@ export default function ServicePage() {
                       <span>Fuel Surcharge (5%):</span><span style={{ textAlign: "right", color: "#12172B" }}>CA${rateResult.fuel.toFixed(2)}</span>
                       <span>HST (13%):</span><span style={{ textAlign: "right", color: "#12172B" }}>CA${rateResult.hst.toFixed(2)}</span>
                       <span>Driver Gratuity (15%):</span><span style={{ textAlign: "right", color: "#12172B" }}>CA${rateResult.gratuity.toFixed(2)}</span>
-                      {extraCharge.enabled && (
+                      {resolvedExtra.enabled && (
                         <>
-                          <span>{extraCharge.name} ({extraCharge.percent}%):</span>
+                          <span>{resolvedExtra.name} ({resolvedExtra.percent}%):</span>
                           <span style={{ textAlign: "right", color: "#12172B" }}>CA${rateResult.extra.toFixed(2)}</span>
                         </>
                       )}

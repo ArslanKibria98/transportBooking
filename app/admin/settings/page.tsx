@@ -2,20 +2,38 @@
 
 import { useEffect, useState } from "react";
 
-interface SettingsForm {
-  extraChargeName: string;
-  extraChargePercent: number;
-  extraChargeEnabled: boolean;
+interface VehicleRow {
+  vehicle: string;
+  percent: number;
+  enabled: boolean;
 }
 
-const defaultForm: SettingsForm = {
-  extraChargeName: "Driver Gratuity",
-  extraChargePercent: 15,
-  extraChargeEnabled: true,
-};
+function Toggle({ on, onClick, disabled }: { on: boolean; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={on}
+      style={{
+        position: "relative", width: 46, height: 26, borderRadius: 999, border: "none",
+        cursor: disabled ? "not-allowed" : "pointer", flexShrink: 0,
+        background: on ? "#16a34a" : "#cbd5e1", transition: "background 0.2s", opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <span style={{
+        position: "absolute", top: 3, left: on ? 23 : 3, width: 20, height: 20, borderRadius: "50%",
+        background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+      }} />
+    </button>
+  );
+}
 
 export default function AdminSettingsPage() {
-  const [form, setForm] = useState<SettingsForm>(defaultForm);
+  const [name, setName] = useState("Driver Gratuity");
+  const [enabled, setEnabled] = useState(true);
+  const [defaultPercent, setDefaultPercent] = useState(15);
+  const [rows, setRows] = useState<VehicleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,14 +43,28 @@ export default function AdminSettingsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/settings");
-      if (!res.ok) throw new Error("Failed to load settings");
-      const data = await res.json();
-      setForm({
-        extraChargeName: data.extraChargeName ?? defaultForm.extraChargeName,
-        extraChargePercent: data.extraChargePercent ?? defaultForm.extraChargePercent,
-        extraChargeEnabled: data.extraChargeEnabled ?? defaultForm.extraChargeEnabled,
-      });
+      const [sRes, vRes] = await Promise.all([
+        fetch("/api/admin/settings"),
+        fetch("/api/vehicles"),
+      ]);
+      if (!sRes.ok) throw new Error("Failed to load settings");
+      const s = await sRes.json();
+      const vData = vRes.ok ? await vRes.json() : { items: [] };
+      const vehicleNames: string[] = (vData.items || []).map((v: any) => v.name);
+      const overrides: VehicleRow[] = Array.isArray(s.vehicleCharges) ? s.vehicleCharges : [];
+      const dft = s.extraChargePercent ?? 15;
+
+      setName(s.extraChargeName ?? "Driver Gratuity");
+      setEnabled(s.extraChargeEnabled ?? true);
+      setDefaultPercent(dft);
+      setRows(
+        vehicleNames.map((vn) => {
+          const o = overrides.find((x) => x.vehicle === vn);
+          return o
+            ? { vehicle: vn, percent: o.percent, enabled: o.enabled }
+            : { vehicle: vn, percent: dft, enabled: true };
+        })
+      );
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -41,6 +73,14 @@ export default function AdminSettingsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const updateRow = (vehicle: string, patch: Partial<VehicleRow>) => {
+    setRows((prev) => prev.map((r) => (r.vehicle === vehicle ? { ...r, ...patch } : r)));
+  };
+
+  const applyDefaultToAll = () => {
+    setRows((prev) => prev.map((r) => ({ ...r, percent: defaultPercent, enabled: true })));
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,15 +91,15 @@ export default function AdminSettingsPage() {
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          extraChargeName: name,
+          extraChargeEnabled: enabled,
+          extraChargePercent: defaultPercent,
+          vehicleCharges: rows,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
-      setForm({
-        extraChargeName: data.extraChargeName,
-        extraChargePercent: data.extraChargePercent,
-        extraChargeEnabled: data.extraChargeEnabled,
-      });
       setSuccess("Settings saved. Changes are now live across the site.");
     } catch (e: any) {
       setError(e.message);
@@ -69,24 +109,20 @@ export default function AdminSettingsPage() {
   };
 
   const inputStyle: React.CSSProperties = {
-    width: "100%", padding: "0.6rem 0.75rem",
+    width: "100%", padding: "0.55rem 0.7rem",
     background: "#ffffff", border: "1px solid #d1d5db",
     borderRadius: 6, color: "#1e293b", fontSize: 14, outline: "none",
   };
 
-  // Preview on a sample CA$100 base rate
-  const sampleBase = 100;
-  const sampleExtra = form.extraChargeEnabled ? sampleBase * (form.extraChargePercent / 100) : 0;
-  const sampleTotal = sampleBase + sampleBase * 0.05 + sampleBase * 0.13 + sampleBase * 0.15 + sampleExtra;
-
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div style={{ maxWidth: 820 }}>
       {/* Header */}
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 2 }}>Pricing Settings</h1>
         <p style={{ fontSize: 13, color: "#64748b" }}>
-          Configure an additional charge applied on top of every rate. When enabled, it is added to
-          the calculator, vehicle &amp; service pages, and the final checkout price.
+          An extra charge added on top of every rate (Fuel 5% · HST 13% · Gratuity 15%). Set a
+          different percentage per vehicle, or turn it off for specific vehicles. Applies to the
+          calculator, vehicle &amp; service pages, and the final checkout price.
         </p>
       </div>
 
@@ -105,36 +141,19 @@ export default function AdminSettingsPage() {
         <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Loading settings…</div>
       ) : (
         <form onSubmit={handleSave} style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "1.75rem" }}>
-          <h2 style={{ fontSize: 17, fontWeight: 600, marginBottom: "1.25rem", color: "#1e293b" }}>
-            Additional Charge
-          </h2>
-
-          {/* Enable toggle */}
+          {/* Master toggle */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.9rem 1rem", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: "1.5rem" }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: "#1e293b" }}>Apply this charge</div>
               <div style={{ fontSize: 12, color: "#64748b" }}>
-                {form.extraChargeEnabled ? "Currently added to every total." : "Currently OFF — not applied anywhere."}
+                {enabled ? "ON — added per the per-vehicle rates below." : "OFF — not applied anywhere, on any vehicle."}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setForm({ ...form, extraChargeEnabled: !form.extraChargeEnabled })}
-              aria-pressed={form.extraChargeEnabled}
-              style={{
-                position: "relative", width: 52, height: 28, borderRadius: 999, border: "none", cursor: "pointer",
-                background: form.extraChargeEnabled ? "#16a34a" : "#cbd5e1", transition: "background 0.2s", flexShrink: 0,
-              }}
-            >
-              <span style={{
-                position: "absolute", top: 3, left: form.extraChargeEnabled ? 27 : 3,
-                width: 22, height: 22, borderRadius: "50%", background: "#fff", transition: "left 0.2s",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-              }} />
-            </button>
+            <Toggle on={enabled} onClick={() => setEnabled(!enabled)} />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem", marginBottom: "1.5rem", opacity: form.extraChargeEnabled ? 1 : 0.55 }}>
+          {/* Name + default percent */}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "1rem", marginBottom: "1.5rem", opacity: enabled ? 1 : 0.55 }}>
             <div>
               <label style={{ display: "block", fontSize: 12, color: "#64748b", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>
                 Charge Name *
@@ -143,37 +162,77 @@ export default function AdminSettingsPage() {
                 type="text"
                 required
                 placeholder="e.g. Driver Gratuity"
-                value={form.extraChargeName}
-                onChange={(e) => setForm({ ...form, extraChargeName: e.target.value })}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 style={inputStyle}
               />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, color: "#64748b", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Percent (%) *
+                Default % (new vehicles)
               </label>
               <input
                 type="number"
-                required
                 min="0"
                 max="100"
                 step="0.01"
-                value={form.extraChargePercent}
-                onChange={(e) => setForm({ ...form, extraChargePercent: Number(e.target.value) })}
+                value={defaultPercent}
+                onChange={(e) => setDefaultPercent(Number(e.target.value))}
                 style={inputStyle}
               />
             </div>
           </div>
 
-          {/* Live preview */}
-          <div style={{ background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 8, padding: "0.85rem 1rem", marginBottom: "1.5rem", fontSize: 13, color: "#64748b", lineHeight: 1.7 }}>
-            <strong style={{ color: "#D4AF37" }}>Preview</strong> (on a CA$100 base rate):<br />
-            Base CA$100.00 · Fuel 5% CA$5.00 · HST 13% CA$13.00 · Gratuity 15% CA$15.00
-            {form.extraChargeEnabled && (
-              <> · <strong style={{ color: "#1e293b" }}>{form.extraChargeName || "Extra"} {form.extraChargePercent}% CA${sampleExtra.toFixed(2)}</strong></>
-            )}
-            {" "}· <strong style={{ color: "#16a34a" }}>Total CA${sampleTotal.toFixed(2)}</strong>
+          {/* Per-vehicle table */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: "#1e293b" }}>Charge per Vehicle</h2>
+            <button type="button" onClick={applyDefaultToAll}
+              style={{ padding: "0.35rem 0.85rem", background: "#f1f5f9", color: "#1e293b", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>
+              Set all to {defaultPercent}%
+            </button>
           </div>
+
+          {rows.length === 0 ? (
+            <div style={{ padding: "1.5rem", textAlign: "center", color: "#94a3b8", fontSize: 14, border: "1px dashed #e2e8f0", borderRadius: 8, marginBottom: "1.5rem" }}>
+              No vehicles found. Add vehicles first, then configure their charges here.
+            </div>
+          ) : (
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem", opacity: enabled ? 1 : 0.55 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ textAlign: "left", padding: "0.6rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Vehicle</th>
+                    <th style={{ textAlign: "center", padding: "0.6rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, width: 140 }}>Percent (%)</th>
+                    <th style={{ textAlign: "center", padding: "0.6rem 1rem", color: "#64748b", fontWeight: 500, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, width: 110 }}>Apply</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={r.vehicle} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 === 0 ? "transparent" : "#f8fafc" }}>
+                      <td style={{ padding: "0.6rem 1rem", color: "#1e293b", fontWeight: 500 }}>{r.vehicle}</td>
+                      <td style={{ padding: "0.5rem 1rem", textAlign: "center" }}>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={r.percent}
+                          disabled={!enabled || !r.enabled}
+                          onChange={(e) => updateRow(r.vehicle, { percent: Number(e.target.value) })}
+                          style={{ ...inputStyle, width: 90, textAlign: "center", padding: "0.4rem 0.5rem", opacity: r.enabled ? 1 : 0.5 }}
+                        />
+                      </td>
+                      <td style={{ padding: "0.5rem 1rem" }}>
+                        <div style={{ display: "flex", justifyContent: "center" }}>
+                          <Toggle on={r.enabled} disabled={!enabled} onClick={() => updateRow(r.vehicle, { enabled: !r.enabled })} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <button type="submit" disabled={saving}
             style={{ padding: "0.65rem 1.6rem", background: saving ? "#e2e8f0" : "#D4AF37", color: saving ? "#94a3b8" : "#000", border: "none", borderRadius: 6, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>
@@ -184,7 +243,7 @@ export default function AdminSettingsPage() {
 
       <div style={{ marginTop: "1.25rem", padding: "1rem 1.25rem", background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12, color: "#64748b", lineHeight: 1.8 }}>
         <strong style={{ color: "#D4AF37" }}>Note:</strong> The fixed Fuel (5%), HST (13%) and Gratuity (15%) charges are always applied.
-        This setting adds one more configurable charge on top — toggle it off any time to remove it everywhere.
+        This adds one more charge on top — set it per vehicle, turn it off for any vehicle, or flip the master switch to remove it everywhere.
       </div>
     </div>
   );

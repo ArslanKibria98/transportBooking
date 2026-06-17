@@ -7,7 +7,7 @@ import { Reservation } from "@/models/Reservation";
 import { ServiceType } from "@/models/ServiceType";
 import { VehiclePreference } from "@/models/VehiclePreference";
 import { getIo } from "@/lib/socket";
-import { getExtraCharge } from "@/lib/settings";
+import { getExtraChargeConfig, resolveExtraCharge } from "@/lib/settings";
 
 export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
@@ -85,8 +85,9 @@ export async function POST(req: Request) {
   const fuelSurcharge = baseRate * 0.05;
   const hst = baseRate * 0.13;
   const gratuity = baseRate * 0.15;
-  // Admin-configurable extra charge (e.g. Driver Gratuity) — applied only when enabled
-  const extra = await getExtraCharge();
+  // Admin-configurable extra charge (e.g. Driver Gratuity) — resolved per vehicle
+  const extraConfig = await getExtraChargeConfig();
+  const extra = resolveExtraCharge(extraConfig, vPref.name || "");
   const extraAmount = extra.enabled ? baseRate * (extra.percent / 100) : 0;
   const totalRate = baseRate + fuelSurcharge + hst + gratuity + extraAmount;
 
